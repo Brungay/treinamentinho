@@ -1,1 +1,1 @@
-web: gunicorn treinamentinho:app
+web: gunicorn app:app
