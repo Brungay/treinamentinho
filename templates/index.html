@@ -1,249 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
+from flask import Flask, render_template, request
+import pandas as pd
+from unidecode import unidecode
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Planilha de Treino</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            background-color: black;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-size: 16px;
-        }
+app = Flask(__name__)
 
-        h1 {
-            margin-bottom: 20px;
-            color: blue;
-        }
+# Carregar o DataFrame no escopo global
+tabela = pd.read_excel(r'C:\Users\Usuario\Desktop\Treinamento\Taco.xlsx')
 
-        table {
-            width: auto;
-            margin: 20px;
-            border-collapse: collapse;
-            border: 1px solid white;
-            border-radius: 15px;
-            overflow: hidden;
-        }
+def remover_acentos(texto):
+    return unidecode(texto)
 
-        th,
-        td {
-            border: 1px solid white;
-            padding: 8px;
-            text-align: left;
-            font-size: 16px;
-        }
+def pesquisar_por_palavra(chave):
+    chave_sem_acentos = remover_acentos(chave.lower())
+    palavras_chave = chave_sem_acentos.split()
 
-        th {
-            background-color: #007BFF;
-            color: white;
-        }
+    # Inicializa uma Series de booleanos para verificar se cada palavra está presente em alguma coluna
+    condicoes = tabela.apply(lambda row: all(palavra in str(row).lower() for palavra in palavras_chave), axis=1)
 
-        textarea {
-            width: 100%;
-            height: 100%;
-            box-sizing: border-box;
-            padding: 10px;
-            margin-bottom: 5px;
-            font-size: 18px;
-            resize: both;
-            overflow: auto;
-            border-radius: 10px;
-        }
+    # Aplica as condições para obter o resultado final
+    resultado_pesquisa = tabela[condicoes]
+    return resultado_pesquisa
 
-        canvas {
-            width: 80%;
-            margin-top: 20px;
-        }
-    </style>
-</head>
+@app.route("/", methods=['POST', 'GET'])
+def home():
+    alimento_desejado = ""  # Move a declaração para fora do bloco condicional
+    resultado_pesquisa = None
 
-<body>
-    <h1>Planilha de Treino</h1>
-    <form method="POST" action="/">
-        <table>
-            <thead>
-                <tr>
-                    <th>Segunda</th>
-                    <th>Terça</th>
-                    <th>Quarta</th>
-                    <th>Quinta</th>
-                    <th>Sexta</th>
-                    <th>Sábado</th>
-                    <th>Domingo</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    {% for i in range(7) %}
-                    <td>
-                        <textarea name="nome_exercicio" oninput="autoSave(this, {{ i }})">{{ exercicios[i] }}</textarea>
-                        <input type="hidden" name="dia_semana" value="{{ i }}">
-                    </td>
-                    {% endfor %}
-                </tr>
-            </tbody>
-        </table>
-    </form>
+    if request.method == 'POST':
+        alimento_desejado = request.form.get('name', '')
+        resultado_pesquisa = pesquisar_por_palavra(alimento_desejado)
 
-    <div style="width: 60%; margin: auto;">
-        <canvas id="quantidadeChart" width="400" height="200"></canvas>
-        <canvas id="frequenciaChart" width="400" height="200"></canvas>
-    </div>
+    return render_template("index.html", name=alimento_desejado, resultado_pesquisa=resultado_pesquisa)
 
-    <script>
-        var exercicios = ["", "", "", "", "", "", ""];
+if __name__ == '__main__':
+    app.run(debug=True, port=5001)
 
-        var ctxQuantidade = document.getElementById('quantidadeChart').getContext('2d');
-        var quantidadeChart = new Chart(ctxQuantidade, {
-            type: 'bar',
-            data: {
-                labels: {{ labels | tojson | safe }},
-                datasets: [{
-                    label: 'NÚMERO DE VEZES EM QUE O MÚSCULO FOI ATIVADO NA SEMANA',
-                    data: {{ quantidade | tojson | safe }},
-                    backgroundColor: [
-                        'rgba(0, 0, 255, 0.5)',
-                        'rgba(255, 0, 0, 0.5)',
-                        'rgba(0, 255, 0, 0.5)',
-                        'rgba(255, 255, 0, 0.5)',
-                        'rgba(0, 255, 255, 0.5)',
-                        'rgba(255, 0, 255, 0.5)',
-                        'rgba(128, 0, 128, 0.5)'
-                    ],
-                    borderColor: [
-                        'rgba(0, 0, 255, 1)',
-                        'rgba(255, 0, 0, 1)',
-                        'rgba(0, 255, 0, 1)',
-                        'rgba(255, 255, 0, 1)',
-                        'rgba(0, 255, 255, 1)',
-                        'rgba(255, 0, 255, 1)',
-                        'rgba(128, 0, 128, 1)'
-                    ],
-                    borderWidth: 2 // Aumentado a largura da borda
-                }]
-            },
-            options: {
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        stepSize: 1, // Ajustado o intervalo entre os números
-                        max: Math.max(...{{ quantidade | tojson | safe }}) // Definido o máximo com base nos dados
-                    },
-                    x: { // Adicionado configuração para o eixo x
-                        ticks: {
-                            font: {
-                                size: 16 // Tamanho da fonte no eixo x
-                            },
-                            color: 'white' // Cor do texto no eixo x
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        labels: {
-                            color: 'white'
-                        }
-                    }
-                }
-            }
-        });
 
-        var ctxFrequencia = document.getElementById('frequenciaChart').getContext('2d');
-        var frequenciaChart = new Chart(ctxFrequencia, {
-            type: 'bar',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'PARTES DO CORPO MAIS ATIVADAS NA SEMANA',
-                    data: [],
-                    backgroundColor: [
-                        'rgba(255, 0, 0, 0.5)',
-                        'rgba(0, 255, 0, 0.5)',
-                        'rgba(0, 0, 255, 0.5)',
-                        'rgba(255, 165, 0, 0.5)',
-                        'rgba(255, 192, 203, 0.5)',
-                        'rgba(0, 128, 0, 0.5)',
-                        'rgba(255, 69, 0, 0.5)'
-                    ],
-                    borderColor: [
-                        'rgba(255, 0, 0, 1)',
-                        'rgba(0, 255, 0, 1)',
-                        'rgba(0, 0, 255, 1)',
-                        'rgba(255, 165, 0, 1)',
-                        'rgba(255, 192, 203, 1)',
-                        'rgba(0, 128, 0, 1)',
-                        'rgba(255, 69, 0, 1)'
-                    ],
-                    borderWidth: 2 // Aumentado a largura da borda
-                }]
-            },
-            options: {
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100
-                    },
-                    x: { // Adicionado configuração para o eixo x
-                        ticks: {
-                            font: {
-                                size: 16 // Tamanho da fonte no eixo x
-                            },
-                            color: 'white' // Cor do texto no eixo x
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        labels: {
-                            color: 'white'
-                        }
-                    }
-                }
-            }
-        });
-
-        function autoSave(element, diaSemana) {
-            exercicios[diaSemana] = element.value;
-            atualizarGrafico();
-        }
-
-        function atualizarGrafico() {
-            var palavras = exercicios.map(function (exercicio) {
-                return exercicio.match(/"([^"]+)"/g) || [];
-            });
-
-            var palavrasFlat = [].concat.apply([], palavras);
-
-            var contagem = palavrasFlat.reduce(function (acc, palavra) {
-                acc[palavra] = (acc[palavra] || 0) + 1;
-                return acc;
-            }, {});
-
-            var totalExercicios = palavrasFlat.length;
-            var porcentagens = Object.keys(contagem).map(function (palavra) {
-                return (contagem[palavra] / totalExercicios) * 100;
-            });
-
-            frequenciaChart.data.labels = Object.keys(contagem);
-            frequenciaChart.data.datasets[0].data = porcentagens;
-            frequenciaChart.update();
-
-            var contagemQuantidade = palavrasFlat.reduce(function (acc, palavra) {
-                acc[palavra] = (acc[palavra] || 0) + 1;
-                return acc;
-            }, {});
-
-            quantidadeChart.data.labels = Object.keys(contagemQuantidade);
-            quantidadeChart.data.datasets[0].data = Object.values(contagemQuantidade);
-            quantidadeChart.options.scales.y.max = Math.max(...Object.values(contagemQuantidade));
-            quantidadeChart.update();
-        }
-    </script>
-</body>
-
-</html>
+        
