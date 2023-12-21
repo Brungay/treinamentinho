@@ -1,40 +1,36 @@
 from flask import Flask, render_template, request
-import re
-from flask import Flask, render_template, request
-import re
+import pandas as pd
+from unidecode import unidecode
 
 app = Flask(__name__)
 
-# Lista para armazenar os exercícios
-exercicios = ["", "", "", "", "", "", ""]
+# Carregar o DataFrame no escopo global
+tabela = pd.read_excel(r'C:\Users\Usuario\Desktop\Treinamento\Taco.xlsx')
 
-def calcular_quantidade(palavras):
-    contagem = {}
-    for palavra in palavras:
-        contagem[palavra] = contagem.get(palavra, 0) + 1
-    return contagem
+def remover_acentos(texto):
+    return unidecode(texto)
 
-@app.route("/", methods=['GET', 'POST'])
-def planilha_exercicios_page():
-    global exercicios
+def pesquisar_por_palavra(chave):
+    chave_sem_acentos = remover_acentos(chave.lower())
+    palavras_chave = chave_sem_acentos.split()
+
+    # Inicializa uma Series de booleanos para verificar se cada palavra está presente em alguma coluna
+    condicoes = tabela.apply(lambda row: all(palavra in str(row).lower() for palavra in palavras_chave), axis=1)
+
+    # Aplica as condições para obter o resultado final
+    resultado_pesquisa = tabela[condicoes]
+    return resultado_pesquisa
+
+@app.route("/", methods=['POST', 'GET'])
+def home():
+    alimento_desejado = ""  # Move a declaração para fora do bloco condicional
+    resultado_pesquisa = None
 
     if request.method == 'POST':
-        dia_semana = int(request.form['dia_semana'])
-        nome_exercicio = request.form['nome_exercicio']
-        exercicios[dia_semana] = nome_exercicio
+        alimento_desejado = request.form.get('name', '')
+        resultado_pesquisa = pesquisar_por_palavra(alimento_desejado)
 
-    # Obter todas as palavras dos exercícios
-    palavras = re.findall(r'"([^"]+)"', ' '.join(exercicios))
-
-    # Calcular a quantidade de cada palavra
-    contagem = calcular_quantidade(palavras)
-
-    # Criar listas para os dados do gráfico
-    labels = list(contagem.keys())
-    quantidade = list(contagem.values())
-
-    return render_template("index.html", exercicios=exercicios, labels=labels, quantidade=quantidade)
-
+    return render_template("index.html", name=alimento_desejado, resultado_pesquisa=resultado_pesquisa)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
